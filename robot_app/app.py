@@ -439,7 +439,5 @@ def handle_pi_data(data):
 # 8. KÍCH HOẠT SERVER VÀ THREAD NGẦM
 # =========================================================
 if __name__ == '__main__':
-    threading.Thread(target=alarm_checker_loop, daemon=True).start()
-    print("🚀 Server Flask & SocketIO đã khởi động! Thread kiểm tra lịch đã sẵn sàng.")
-    
-    socketio.run(app, host='0.0.0.0', port=5000, debug=False)
+    port = int(os.environ.get("PORT", 5000))
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)
