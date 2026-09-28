@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Nhắc Uống Thuốc AI YOLOv8</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f121d;
+            --panel-bg: #181c2b;
+            --border-color: #2c3248;
+            --accent-blue: #00d2ff;
+            --accent-green: #00e676;
+            --accent-red: #ff3d71;
+            --accent-yellow: #ffc107;
+            --text-color: #ffffff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
+        body { background: var(--bg-color); color: var(--text-color); padding: 10px; }
+
+        .title-header { text-align: center; padding: 12px; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 10px; }
+        .title-header h1 { font-size: 1.6rem; color: #fff; letter-spacing: 1px; }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr 1.5fr 1fr 1.1fr;
+            gap: 10px;
+        }
+
+        @media (max-width: 1200px) {
+            .grid-container { grid-template-columns: 1fr 1fr; }
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .panel-title { font-size: 0.95rem; font-weight: bold; color: var(--accent-blue); text-align: center; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; margin-bottom: 4px; }
+
+        .servo-item { background: #111422; padding: 8px; border-radius: 6px; }
+        .servo-header { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; }
+        .servo-inputs { display: flex; gap: 8px; align-items: center; }
+        .servo-inputs input[type=range] { flex: 1; accent-color: var(--accent-blue); }
+        .servo-inputs input[type=number] { width: 55px; background: #1a1e30; border: 1px solid var(--border-color); color: #fff; text-align: center; border-radius: 4px; padding: 2px; }
+
+        .dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; width: 140px; margin: 0 auto; }
+        .btn-ctrl { background: #252b40; border: 1px solid var(--border-color); color: #fff; padding: 10px 0; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; }
+        .btn-ctrl:active { background: var(--accent-blue); color: #000; }
+        .btn-stop { background: var(--accent-red); grid-column: span 3; }
+
+        .speed-box input { width: 100%; accent-color: var(--accent-yellow); }
+        .mode-btn-group { display: flex; gap: 5px; }
+        .btn-mode { flex: 1; padding: 6px; border: 1px solid var(--border-color); background: #252b40; color: #fff; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+        .btn-mode.active { background: var(--accent-green); color: #000; font-weight: bold; }
+
+        .alarm-input-box { display: flex; gap: 4px; }
+        .alarm-input-box input { flex: 1; background: #111422; border: 1px solid var(--border-color); color: #fff; border-radius: 4px; padding: 4px; }
+        .alarm-list { max-height: 80px; overflow-y: auto; background: #111422; border-radius: 4px; padding: 4px; font-size: 0.8rem; }
+        .alarm-item { display: flex; justify-content: space-between; padding: 2px 4px; border-bottom: 1px solid #222; }
+
+        .cam-box { width: 100%; height: 200px; background: #000; border-radius: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        .cam-box img { width: 100%; height: 100%; object-fit: contain; }
+        .info-row { font-size: 0.85rem; background: #111422; padding: 6px; border-radius: 4px; display: flex; justify-content: space-between; }
+
+        .esp-distance-box {
+            background: linear-gradient(135deg, #0d2538, #111422);
+            border: 1px solid var(--accent-blue);
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+        .esp-distance-title { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; }
+        .esp-distance-val { font-size: 1.25rem; font-weight: bold; color: var(--accent-blue); margin-top: 2px; }
+
+        .feedback-btn-group { display: flex; gap: 6px; margin-top: 4px; }
+        .btn-feedback {
+            flex: 1;
+            padding: 8px 4px;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-feedback.correct {
+            background: #1b4332;
+            color: #2ec4b6;
+            border: 1px solid #2ec4b6;
+        }
+        .btn-feedback.correct:hover {
+            background: #2ec4b6;
+            color: #000;
+        }
+        .btn-feedback.incorrect {
+            background: #4a121a;
+            color: var(--accent-red);
+            border: 1px solid var(--accent-red);
+        }
+        .btn-feedback.incorrect:hover {
+            background: var(--accent-red);
+            color: #fff;
+        }
+
+        .value-display { font-size: 1.1rem; font-weight: bold; color: var(--accent-yellow); text-align: center; }
+
+        .tray-block { background: #111422; padding: 6px; border-radius: 6px; margin-bottom: 4px; }
+        .tray-block label { font-size: 0.8rem; display: block; margin-bottom: 4px; color: var(--accent-blue); }
+        .tray-btn-group { display: flex; gap: 4px; }
+        .btn-tray { flex: 1; padding: 6px 0; border: none; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; background: #252b40; color: #fff; }
+        .btn-tray.push { border: 1px solid var(--accent-green); color: var(--accent-green); }
+        .btn-tray.stop { border: 1px solid var(--accent-red); color: var(--accent-red); }
+        .btn-tray.pull { border: 1px solid var(--accent-yellow); color: var(--accent-yellow); }
+
+        .bottom-section { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .health-bar { background: var(--panel-bg); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; display: flex; justify-content: space-around; align-items: center; }
+        .alert-bar { background: #3a131d; border: 1px solid var(--accent-red); padding: 10px; border-radius: 8px; display: flex; gap: 10px; align-items: center; }
+        .alert-bar input { flex: 1; background: #111422; border: 1px solid var(--border-color); color: #fff; padding: 6px; border-radius: 4px; }
+        .btn-alert { background: var(--accent-red); color: #fff; border: none; padding: 6px 15px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .btn-wake { background: var(--accent-blue); color: #000; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 4px; }
+    </style>
+</head>
+<body>
+
+    <div class="title-header">
+        <h1>Robot Nhắc Uống Thuốc Thông Minh (YOLOv8 AI)</h1>
+    </div>
+
+    <div class="grid-container">
+
+        <!-- CỘT 1: SERVO CÁNH TAY ROBOT -->
+        <div class="panel">
+            <div class="panel-title">3 Servo Cánh Tay Robot</div>
+            
+            <div class="servo-item">
+                <div class="servo-header"><span>Tầng 1 (GPIO 5)</span></div>
+                <div class="servo-inputs">
+                    <input type="range" id="s1_range" min="0" max="180" value="125" oninput="syncServo(1, this.value)">
+                    <input type="number" id="s1_num" min="0" max="180" value="125" onchange="syncServo(1, this.value)">
+                </div>
+            </div>
+
+            <div class="servo-item">
+                <div class="servo-header"><span>Tầng 2 (GPIO 6)</span></div>
+                <div class="servo-inputs">
+                    <input type="range" id="s2_range" min="0" max="180" value="160" oninput="syncServo(2, this.value)">
+                    <input type="number" id="s2_num" min="0" max="180" value="160" onchange="syncServo(2, this.value)">
+                </div>
+            </div>
+
+            <div class="servo-item">
+                <div class="servo-header"><span>Tầng 3 (GPIO 12)</span></div>
+                <div class="servo-inputs">
+                    <input type="range" id="s3_range" min="0" max="180" value="50" oninput="syncServo(3, this.value)">
+                    <input type="number" id="s3_num" min="0" max="180" value="50" onchange="syncServo(3, this.value)">
+                </div>
+            </div>
+        </div>
+
+        <!-- CỘT 2: ĐIỀU KHIỂN BÁNH XE, LỊCH THUỐC, CHẾ ĐỘ -->
+        <div class="panel">
+            <div class="panel-title">Điều Khiển Bánh Xe</div>
+            <div class="dpad">
+                <div></div><button class="btn-ctrl" onclick="sendMotor('FORWARD')">▲</button><div></div>
+                <button class="btn-ctrl" onclick="sendMotor('LEFT')">◄</button><div></div><button class="btn-ctrl" onclick="sendMotor('RIGHT')">►</button>
+                <div></div><button class="btn-ctrl" onclick="sendMotor('BACKWARD')">▼</button><div></div>
+                <button class="btn-ctrl btn-stop" onclick="sendMotor('STOP')">DỪNG</button>
+            </div>
+
+            <div class="panel-title" style="margin-top: 6px;">Thanh Tốc Độ</div>
+            <div class="speed-box">
+                <input type="range" min="0" max="100" value="50" onchange="setSpeed(this.value)">
+            </div>
+
+            <div class="panel-title" style="margin-top: 6px;">Cài Giờ Uống Thuốc</div>
+            <div class="alarm-input-box">
+                <input type="time" id="alarmTime">
+                <button class="btn-ctrl" style="padding: 2px 8px;" onclick="addAlarm()">Thêm</button>
+            </div>
+            <div class="alarm-list" id="alarmList"></div>
+
+            <div class="panel-title" style="margin-top: 6px;">Trạng Thái MAN / AUTO</div>
+            <div class="mode-btn-group">
+                <button class="btn-mode active" id="btnMAN" onclick="setMode('MANUAL')">MAN</button>
+                <button class="btn-mode" id="btnAUTO" onclick="setMode('AUTO')">AUTO</button>
+            </div>
+        </div>
+
+        <!-- CỘT 3: CAMERA, CPU TEMP, YOLOV8 & FEEDBACK -->
+        <div class="panel">
+            <div class="panel-title">Luồng Camera / YOLOv8 AI</div>
+            <div class="cam-box">
+                <img id="cameraStream" src="" alt="Đang kết nối Camera Pi / Đang Ngủ...">
+            </div>
+            <button class="btn-wake" onclick="wakeUpCamera()">📷 Bật lại Camera</button>
+            
+            <div class="info-row">
+                <span>Nhiệt độ CPU Pi:</span>
+                <b id="cpuTemp" style="color: var(--accent-yellow);">-- °C</b>
+            </div>
+            <div class="info-row">
+                <span>Kết quả YOLOv8:</span>
+                <b id="aiRes" style="color: var(--accent-green);">Chờ lệnh</b>
+            </div>
+
+            <div class="panel-title" style="margin-top: 6px;">Phản Hồi AI (Lưu Mẫu Retrain)</div>
+            <div class="feedback-btn-group">
+                <button class="btn-feedback correct" onclick="sendAIFeedback(true)">
+                    ✅ Nhận Diện ĐÚNG
+                </button>
+                <button class="btn-feedback incorrect" onclick="sendAIFeedback(false)">
+                    ❌ Nhận Diện SAI
+                </button>
+            </div>
+        </div>
+
+        <!-- CỘT 4: LA BÀN, PIN, KHOẢNG CÁCH 2 ESP32, RADAR HC04, SĐT -->
+        <div class="panel">
+            <div class="panel-title">Hướng La Bàn</div>
+            <div class="value-display" id="compassVal">0°</div>
+            <button class="btn-ctrl" style="background: var(--accent-yellow); color: #000; margin-top: 4px; font-weight: bold; padding: 6px 0;" onclick="calibCompass()">🧭 Calib La Bàn (QMC)</button>
+
+            <div class="panel-title" style="margin-top: 6px;">Dung Lượng Pin</div>
+            <div class="value-display" id="batteryVal" style="color: var(--accent-green);">--V</div>
+
+            <!-- HIỂN THỊ TRỰC QUAN KHOẢNG CÁCH GIỮA 2 ESP32 -->
+            <div class="esp-distance-box" style="margin-top: 6px;">
+                <div class="esp-distance-title">Khoảng Cách 2 ESP32 (Robot ↔ Bệnh Nhân)</div>
+                <div class="esp-distance-val" id="espDistanceVal">-- m</div>
+                <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">
+                    RSSI: <span id="espRssiVal" style="color: #fff;">-100 dBm</span>
+                </div>
+            </div>
+
+            <!-- MÀN HÌNH RADAR QUÉT HC-SR04 -->
+            <div class="panel-title" style="margin-top: 6px;">📡 Radar Quét HC-SR04</div>
+            <div style="position: relative; width: 100%; background: #080c14; border-radius: 8px; border: 1px solid #00d2ff44; padding: 6px; display: flex; flex-direction: column; align-items: center; box-shadow: inset 0 0 10px rgba(0,210,255,0.1);">
+                <canvas id="radarCanvas" width="280" height="140" style="width: 100%; height: auto; max-width: 280px;"></canvas>
+                <div style="position: absolute; top: 8px; left: 12px; font-size: 0.75rem; color: var(--accent-blue);">
+                    Góc: <b id="servoHc04Val" style="font-size: 0.9rem;">90°</b>
+                </div>
+                <div style="position: absolute; top: 8px; right: 12px; font-size: 0.75rem; color: var(--accent-red);">
+                    KC: <b id="hc04Val" style="font-size: 0.9rem;">0 cm</b>
+                </div>
+            </div>
+
+            <div class="panel-title">Tốc Độ Động Cơ T/P</div>
+            <div class="info-row">
+                <span>Trái: <b id="speedL">0</b></span>
+                <span>Phải: <b id="speedR">0</b></span>
+            </div>
+
+            <div class="panel-title">Cấu Hình Wi-Fi & SĐT</div>
+            <input type="text" id="wifiSsid" placeholder="Tên Wi-Fi (SSID)" style="background:#111422; border:1px solid #2c3248; color:#fff; padding:3px; border-radius:4px;">
+            <input type="password" id="wifiPass" placeholder="Mật khẩu Wi-Fi" style="background:#111422; border:1px solid #2c3248; color:#fff; padding:3px; border-radius:4px;">
+            
+            <div style="display: flex; gap: 4px;">
+                <input type="text" id="phoneNum" placeholder="SĐT người thân" style="flex: 1; background:#111422; border:1px solid #2c3248; color:#fff; padding:3px; border-radius:4px;">
+                <button class="btn-ctrl" style="padding: 3px 8px; background: var(--accent-green); color: #000;" onclick="testCall()">📞 Gọi test</button>
+            </div>
+
+            <button class="btn-ctrl" style="padding: 4px; margin-top: 4px;" onclick="saveConfig()">Lưu Cấu Hình</button>
+        </div>
+
+        <!-- CỘT 5: KHAY THUỐC & RELAY MANUAL -->
+        <div class="panel">
+            <div class="panel-title">3 Ngăn Chứa Thuốc</div>
+            
+            <div class="tray-block">
+                <label>Ngăn Thuốc 1</label>
+                <div class="tray-btn-group">
+                    <button class="btn-tray push" onclick="sendTray(1, 'PUSH')">Đẩy</button>
+                    <button class="btn-tray stop" onclick="sendTray(1, 'STOP')">Dừng</button>
+                    <button class="btn-tray pull" onclick="sendTray(1, 'PULL')">Lùi</button>
+                </div>
+            </div>
+
+            <div class="tray-block">
+                <label>Ngăn Thuốc 2</label>
+                <div class="tray-btn-group">
+                    <button class="btn-tray push" onclick="sendTray(2, 'PUSH')">Đẩy</button>
+                    <button class="btn-tray stop" onclick="sendTray(2, 'STOP')">Dừng</button>
+                    <button class="btn-tray pull" onclick="sendTray(2, 'PULL')">Lùi</button>
+                </div>
+            </div>
+
+            <div class="tray-block">
+                <label>Ngăn Thuốc 3</label>
+                <div class="tray-btn-group">
+                    <button class="btn-tray push" onclick="sendTray(3, 'PUSH')">Đẩy</button>
+                    <button class="btn-tray stop" onclick="sendTray(3, 'STOP')">Dừng</button>
+                    <button class="btn-tray pull" onclick="sendTray(3, 'PULL')">Lùi</button>
+                </div>
+            </div>
+
+            <div class="panel-title" style="margin-top: 6px;">Rơ-le Nguồn (Relay)</div>
+            
+            <div class="tray-block">
+                <label>Relay 1 (Nguồn Pi / Mạch)</label>
+                <div class="tray-btn-group">
+                    <button class="btn-tray push relay-btn" id="btn_r1_on" onclick="sendRelay(1, 'ON')">BẬT</button>
+                    <button class="btn-tray stop relay-btn" id="btn_r1_off" onclick="sendRelay(1, 'OFF')">TẮT</button>
+                </div>
+            </div>
+
+            <div class="tray-block">
+                <label>Relay 2 (Nguồn Servo / Môtơ)</label>
+                <div class="tray-btn-group">
+                    <button class="btn-tray push relay-btn" id="btn_r2_on" onclick="sendRelay(2, 'ON')">BẬT</button>
+                    <button class="btn-tray stop relay-btn" id="btn_r2_off" onclick="sendRelay(2, 'OFF')">TẮT</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- KHU VỰC THÔNG SỐ SỨC KHỎE VÀ CẢNH BÁO -->
+    <div class="bottom-section">
+        <div class="health-bar">
+            <div><b>Nhịp Tim Bệnh Nhân:</b> <span id="heartRate" style="color: var(--accent-red); font-size: 1.2rem;">--</span> BPM</div>
+            <div><b>Thân Nhiệt:</b> <span id="bodyTemp" style="color: var(--accent-yellow); font-size: 1.2rem;">--</span> °C</div>
+        </div>
+
+        <div class="alert-bar">
+            <b>Thông Báo / Cảnh Báo:</b>
+            <input type="text" id="alertMsg" placeholder="Nhập nội dung cảnh báo...">
+            <button class="btn-alert" onclick="sendAlert()">GỬI CẢNH BÁO</button>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let currentMode = 'MANUAL';
+        let currentAngle = 90;
+        let currentDist = 0;
+
+        // =========================================================
+        // HÀM VẼ RADAR SCANNER VỚI CANVAS (180 ĐỘ)
+        // =========================================================
+        function drawRadar(angleDeg, distCm) {
+            const canvas = document.getElementById('radarCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            
+            const W = canvas.width;
+            const H = canvas.height;
+            const cx = W / 2;       
+            const cy = H - 10;      
+            const radius = H - 20;  
+            const maxDist = 150;    
+
+            ctx.clearRect(0, 0, W, H);
+
+            // 1. Vẽ các vòng cung cự ly
+            ctx.strokeStyle = "rgba(0, 210, 255, 0.25)";
+            ctx.lineWidth = 1;
+            for (let rScale of [0.25, 0.5, 0.75, 1.0]) {
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius * rScale, Math.PI, 0, false);
+                ctx.stroke();
+            }
+
+            // 2. Vẽ các đường chia góc
+            const rayAngles = [30, 60, 90, 120, 150];
+            rayAngles.forEach(deg => {
+                const rad = Math.PI - (deg * Math.PI / 180);
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(cx + radius * Math.cos(rad), cy - radius * Math.sin(rad));
+                ctx.stroke();
+            });
+
+            ctx.beginPath();
+            ctx.moveTo(cx - radius, cy);
+            ctx.lineTo(cx + radius, cy);
+            ctx.stroke();
+
+            // 3. Vẽ Kim Tia Quét
+            const currentRad = Math.PI - (angleDeg * Math.PI / 180);
+            const sweepX = cx + radius * Math.cos(currentRad);
+            const sweepY = cy - radius * Math.sin(currentRad);
+
+            ctx.strokeStyle = "#00d2ff";
+            ctx.lineWidth = 2;
+            ctx.shadowColor = "#00d2ff";
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(sweepX, sweepY);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // 4. Vẽ Chấm Đỏ Vật Cản
+            if (distCm > 0 && distCm <= maxDist) {
+                const obstacleR = (distCm / maxDist) * radius;
+                const obsX = cx + obstacleR * Math.cos(currentRad);
+                const obsY = cy - obstacleR * Math.sin(currentRad);
+
+                ctx.fillStyle = "#ff3d71";
+                ctx.shadowColor = "#ff3d71";
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.arc(obsX, obsY, 5, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        socket.on('update_ui', function(data) {
+            if (data.camera_frame) document.getElementById('cameraStream').src = 'data:image/jpeg;base64,' + data.camera_frame;
+            if (data.cpu_temp !== undefined) document.getElementById('cpuTemp').innerText = data.cpu_temp + ' °C';
+            if (data.battery !== undefined) document.getElementById('batteryVal').innerText = data.battery;
+            
+            if (data.ai_res !== undefined) {
+                const aiEl = document.getElementById('aiRes');
+                aiEl.innerText = data.ai_res;
+                if (data.ai_res.includes("Đã uống thuốc xong")) {
+                    aiEl.style.color = "var(--accent-green)";
+                    aiEl.style.fontWeight = "bold";
+                } else if (data.ai_res.includes("Đang đưa thuốc")) {
+                    aiEl.style.color = "var(--accent-yellow)";
+                    aiEl.style.fontWeight = "bold";
+                } else {
+                    aiEl.style.color = "#ffffff";
+                    aiEl.style.fontWeight = "normal";
+                }
+            }
+            
+            if (data.compass !== undefined) document.getElementById('compassVal').innerText = data.compass + '°';
+            
+            // CẬP NHẬT KHOẢNG CÁCH GIỮA 2 ESP32 (ROBOT VÀ BỆNH NHÂN)
+            if (data.patient_dist !== undefined && data.patient_dist > 0) {
+                document.getElementById('espDistanceVal').innerText = data.patient_dist + " m";
+            } else {
+                document.getElementById('espDistanceVal').innerText = "Chưa kết nối";
+            }
+            if (data.patient_rssi !== undefined) {
+                document.getElementById('espRssiVal').innerText = data.patient_rssi + " dBm";
+            }
+
+            // Cập nhật giá trị Servo/HC04 & Vẽ Radar Canvas
+            if (data.servo_hc04_angle !== undefined) {
+                currentAngle = data.servo_hc04_angle;
+                document.getElementById('servoHc04Val').innerText = currentAngle + '°';
+            }
+            if (data.hc04 !== undefined) {
+                currentDist = parseFloat(data.hc04).toFixed(1);
+                document.getElementById('hc04Val').innerText = currentDist + ' cm';
+            }
+            drawRadar(currentAngle, currentDist);
+
+            if (data.motor_speed_l !== undefined) document.getElementById('speedL').innerText = data.motor_speed_l;
+            if (data.motor_speed_r !== undefined) document.getElementById('speedR').innerText = data.motor_speed_r;
+
+            if (data.heart_rate !== undefined) document.getElementById('heartRate').innerText = data.heart_rate;
+            if (data.body_temp !== undefined) document.getElementById('bodyTemp').innerText = data.body_temp;
+
+            if (data.mode) {
+                currentMode = data.mode;
+                document.getElementById('btnMAN').classList.toggle('active', data.mode === 'MANUAL');
+                document.getElementById('btnAUTO').classList.toggle('active', data.mode === 'AUTO');
+
+                const isManual = (data.mode === 'MANUAL');
+                document.querySelectorAll('.relay-btn').forEach(btn => {
+                    btn.disabled = !isManual;
+                    btn.style.opacity = isManual ? "1" : "0.4";
+                    btn.style.cursor = isManual ? "pointer" : "not-allowed";
+                });
+            }
+
+            if (data.relay1 !== undefined) {
+                document.getElementById('btn_r1_on').style.background = data.relay1 ? "var(--accent-green)" : "#252b40";
+                document.getElementById('btn_r1_on').style.color = data.relay1 ? "#000" : "#fff";
+                document.getElementById('btn_r1_off').style.background = !data.relay1 ? "var(--accent-red)" : "#252b40";
+                document.getElementById('btn_r1_off').style.color = !data.relay1 ? "#fff" : "#fff";
+            }
+            if (data.relay2 !== undefined) {
+                document.getElementById('btn_r2_on').style.background = data.relay2 ? "var(--accent-green)" : "#252b40";
+                document.getElementById('btn_r2_on').style.color = data.relay2 ? "#000" : "#fff";
+                document.getElementById('btn_r2_off').style.background = !data.relay2 ? "var(--accent-red)" : "#252b40";
+                document.getElementById('btn_r2_off').style.color = !data.relay2 ? "#fff" : "#fff";
+            }
+
+            if (data.phone_number && !document.getElementById('phoneNum').value) {
+                document.getElementById('phoneNum').value = data.phone_number;
+            }
+
+            if (data.alert) document.getElementById('alertMsg').value = data.alert;
+            if (data.alarms) renderAlarms(data.alarms);
+        });
+
+        function calibCompass() {
+            socket.emit('ui_send_command', { type: 'CALIB_COMPASS' });
+            alert("Đã gửi lệnh Calib La Bàn! Vui lòng xoay Robot 360° trong khoảng 10-15 giây.");
+        }
+
+        function sendAIFeedback(isCorrect) {
+            socket.emit('ui_feedback_ai', {
+                is_correct: isCorrect,
+                notes: isCorrect ? 'Nhận diện chính xác' : 'Nhận diện sai tình huống'
+            });
+            const statusStr = isCorrect ? "ĐÚNG" : "SAI";
+            alert("Đã gửi xác nhận (" + statusStr + ")! Ảnh hiện tại đã được lưu vào Dataset để Retrain.");
+        }
+
+        function syncServo(layer, val) {
+            document.getElementById('s' + layer + '_range').value = val;
+            document.getElementById('s' + layer + '_num').value = val;
+            socket.emit('ui_send_command', {
+                type: 'SERVO_CONTROL',
+                payload: { layer: parseInt(layer), angle: parseFloat(val) }
+            });
+        }
+
+        function wakeUpCamera() {
+            socket.emit('ui_send_command', { type: 'WAKE_UP' });
+        }
+
+        function sendMotor(dir) {
+            socket.emit('ui_send_command', { type: 'MOTOR_MOVE', payload: { direction: dir } });
+        }
+
+        function setSpeed(val) {
+            socket.emit('ui_send_command', { type: 'SET_SPEED', payload: { speed: parseInt(val) } });
+        }
+
+        function setMode(mode) {
+            document.getElementById('btnMAN').classList.toggle('active', mode === 'MANUAL');
+            document.getElementById('btnAUTO').classList.toggle('active', mode === 'AUTO');
+            socket.emit('ui_send_command', { type: 'TOGGLE_MODE', payload: { mode: mode } });
+        }
+
+        function addAlarm() {
+            const timeVal = document.getElementById('alarmTime').value;
+            if (timeVal) {
+                socket.emit('ui_send_command', { type: 'ADD_ALARM', payload: { time: timeVal } });
+            }
+        }
+        function deleteAlarm(timeVal) {
+            socket.emit('ui_send_command', { type: 'DELETE_ALARM', payload: { time: timeVal } });
+        }
+        function renderAlarms(alarms) {
+            const listContainer = document.getElementById('alarmList');
+            listContainer.innerHTML = '';
+            alarms.forEach(time => {
+                listContainer.innerHTML += `<div class="alarm-item"><span>⏰ ${time}</span><b style="color:red;cursor:pointer;" onclick="deleteAlarm('${time}')">X</b></div>`;
+            });
+        }
+
+        function sendTray(trayId, action) {
+            socket.emit('ui_send_command', { type: 'TRAY_CONTROL', payload: { tray_id: trayId, action: action } });
+        }
+
+        function sendRelay(relayId, action) {
+            if (currentMode !== 'MANUAL') {
+                alert("Chỉ có thể bật/tắt Relay thủ công khi ở chế độ MANUAL!");
+                return;
+            }
+            socket.emit('ui_send_command', {
+                type: 'RELAY_CONTROL',
+                payload: { relay_id: relayId, action: action }
+            });
+        }
+
+        function testCall() {
+            const phone = document.getElementById('phoneNum').value;
+            if (!phone) {
+                alert("Vui lòng nhập Số điện thoại trước khi gọi!");
+                return;
+            }
+            socket.emit('ui_send_command', {
+                type: 'CALL_PHONE',
+                payload: { phone: phone }
+            });
+            alert("Đã gửi lệnh gọi điện thử nghiệm tới số: " + phone);
+        }
+
+        function saveConfig() {
+            const ssid = document.getElementById('wifiSsid').value;
+            const pass = document.getElementById('wifiPass').value;
+            const phone = document.getElementById('phoneNum').value;
+            if(phone) socket.emit('ui_send_command', { type: 'SAVE_PHONE', payload: { phone: phone } });
+            if(ssid) socket.emit('ui_send_command', { type: 'SAVE_CONFIG', payload: { wifi_ssid: ssid, wifi_pass: pass } });
+            alert("Đã gửi thông tin cấu hình tới Robot!");
+        }
+
+        function sendAlert() {
+            const msg = document.getElementById('alertMsg').value;
+            socket.emit('ui_send_command', { type: 'SEND_ALERT', payload: { message: msg } });
+        }
+    </script>
+</body>
+</html>
